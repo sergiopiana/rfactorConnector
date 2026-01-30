@@ -1,74 +1,67 @@
-# Wind Simulator Bridge & rFactor Connector
+# SimRacing Universal Connector
 
-This project allows you to connect various racing simulators (rFactor, iRacing, Assetto Corsa, BeamNG) to an ESP32-based wind simulator. It reads telemetry data (speed) from the game and sends it via UDP to the ESP32 to control fan speed. It also broadcasts telemetry via WebSockets.
+A modular, multi-game telemetry connector that exposes physics data (Speed, RPM, Gear, Pedals, etc.) via a standardized WebSocket API. 
 
-## Features
+Designed to let you build ANY hardware or software integration (Wind Simulators, Motion Rigs, Dashboards, Hue Sync, etc.) without worrying about the specific game API.
 
-- **Multi-Game Support**:
-  - rFactor 1 (via Shared Memory)
-  - iRacing (via API)
-  - Assetto Corsa (via Shared Memory)
-  - BeamNG.drive (via OutGauge UDP)
-- **ESP32 Integration**: Sends UDP packets to control PWM fans.
-- **WebSocket Server**: Broadcasts telemetry data for local dashboards or debugging.
+## Supported Games
 
-## Prerequisites
+- **iRacing** (via generic PyIrSdk)
+- **Assetto Corsa** (via Shared Memory)
+- **rFactor 1 / Automobilista** (via `rFactorSharedMemoryMap.dll`)
+- **BeamNG.drive** (via OutGauge UDP)
 
-- Python 3.x
-- An ESP32 running the compatible wind simulator firmware.
+## Architecture
+
+The connector acts as a **Server**. 
+1. It connects to the requested Game.
+2. It normalizes data into a standard JSON Structure.
+3. It broadcasts this JSON to all connected WebSocket clients (port 8765 by default).
 
 ## Installation
 
 1.  Clone this repository.
-2.  Install the required Python dependencies:
-
+2.  Install dependencies:
     ```bash
     pip install -r requirements.txt
+    pip install pyirsdk # Required for iRacing
     ```
-
-    *Note: For iRacing support, you also need to install `pyirsdk`:*
-    ```bash
-    pip install pyirsdk
-    ```
-
-## Configuration
-
-Open `bridge.py` and configure the following settings at the top of the file:
-
-```python
-# --- CONFIGURATION ---
-ESP_IP = "192.168.68.80" # REPLACE WITH YOUR ESP32 IP
-ESP_PORT = 4210
-MAX_SPEED_KMH = 200 # Speed at which fans reach 100%
-```
 
 ## Usage
 
-Run the bridge script from the command line, specifying the game you are playing:
+Start the connector for your specific game:
 
 ```bash
-python bridge.py --game <game_name>
+python main.py --game iracing
 ```
 
-### Supported Games & Arguments
+Available games: `iracing`, `ac`, `rfactor`, `beamng`, `test`.
 
--   **rFactor**: `--game rfactor`
-    -   **Requirement**: You must install the `rFactorSharedMemoryMap.dll` plugin into your `rFactor/Plugins` directory.
--   **iRacing**: `--game iracing`
-    -   **Requirement**: iRacing sim must be running.
--   **Assetto Corsa**: `--game ac`
-    -   **Requirement**: Shared Memory must be enabled in AC settings (usually on by default).
--   **BeamNG.drive**: `--game beamng`
-    -   **Requirement**: Enable 'OutGauge' in BeamNG Hardware settings. Set IP to `127.0.0.1` and Port to `4444`.
--   **Test Mode**: `--game test`
-    -   Generates a sine wave speed signal to test the fans without a game.
+## API (WebSocket)
 
-## Troubleshooting
+Connect to `ws://localhost:8765`. You will receive a JSON stream at ~60Hz:
 
--   **Fans not spinning**:
-    -   Check if the ESP32 IP in `bridge.py` matches your device's IP.
-    -   Ensure the ESP32 is powered and connected to WiFi.
-    -   Verify the computer firewall is not blocking UDP port 4210.
--   **rFactor not connecting**:
-    -   Ensure the DLL plugin is in the correct folder (`rFactor/Plugins`) and unlocked if necessary.
-    -   Run rFactor as Administrator.
+```json
+{
+  "game_name": "Assetto Corsa",
+  "connected": true,
+  "speed_kmh": 120.5,
+  "rpm": 5400,
+  "max_rpm": 8000,
+  "gear": 3,
+  "throttle": 1.0,
+  "brake": 0.0,
+  "clutch": 0.0,
+  "steering_angle": 0.05
+}
+```
+
+## Examples
+
+### Wind Simulator (Legacy Mode)
+If you want to use this for a Wind Simulator (controlling an ESP32), see `examples/wind_sim_client.py`.
+
+1. Run the connector: `python main.py --game <game>`
+2. Run the client: `python examples/wind_sim_client.py`
+
+This separates the Game Logic from the Hardware Logic.
